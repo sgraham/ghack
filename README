@@ -1,0 +1,11 @@
+Run:
+
+  "c:\Program Files (x86)\Microsoft Visual Studio 14.0\vc\vcvarsall.bat" amd64_x86
+
+first.
+
+Then use:
+
+  m.bat
+  
+to build and run.
