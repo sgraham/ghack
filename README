@@ -7,5 +7,9 @@ first.
 Then use:
 
   m.bat
-  
+
 to build and run.
+
+
+Uses test icons from http://www.entypo.com/ and
+https://github.com/memononen/nanosvg.

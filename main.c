@@ -2,6 +2,8 @@
 
 #include <stdlib.h>
 #include <math.h>
+#define NANOSVG_IMPLEMENTATION
+#include "nanosvg.h"
 
 #define false 0
 #define true -1
@@ -16,7 +18,7 @@ typedef struct Bitmap {
   unsigned char* line[];
 } Bitmap;
 
-static unsigned char screen_bitmap[sizeof(Bitmap) + 128 * 128];
+static unsigned char screen_bitmap[sizeof(Bitmap) + 256 * 256];
 
 // TODO(scottmg): Separate driver functions that depend on target bitmap type,
 // etc. Maybe put these in a function table if we support multiple
@@ -183,32 +185,31 @@ void gfx_Line(Bitmap* bmp, int x1, int y1, int x2, int y2, Color color) {
 // num_points parameter, which controls how many output pixels will be stored in
 // the x and y arrays.
 static void calc_spline(int points[8], int num_points, int* out_x, int* out_y) {
-  // TODO(scottmg): Probably needs to be fixed-point.
   // Derivatives of x(t) and y(t).
-  double x, dx, ddx, dddx;
-  double y, dy, ddy, dddy;
+  float x, dx, ddx, dddx;
+  float y, dy, ddy, dddy;
   int i;
 
   // Temp variables used in the setup.
-  double dt, dt2, dt3;
-  double xdt2_term, xdt3_term;
-  double ydt2_term, ydt3_term;
+  float dt, dt2, dt3;
+  float xdt2_term, xdt3_term;
+  float ydt2_term, ydt3_term;
 
-  dt = 1.0 / (num_points - 1);
+  dt = 1.f / (num_points - 1);
   dt2 = (dt * dt);
   dt3 = (dt2 * dt);
 
   // X coordinates.
-  xdt2_term = 3 * (points[4] - 2 * points[2] + points[0]);
-  xdt3_term = points[6] + 3 * (-points[4] + points[2]) - points[0];
+  xdt2_term = 3.f * (points[4] - 2.f * points[2] + points[0]);
+  xdt3_term = points[6] + 3.f * (-points[4] + points[2]) - points[0];
 
   xdt2_term = dt2 * xdt2_term;
   xdt3_term = dt3 * xdt3_term;
 
-  dddx = 6 * xdt3_term;
-  ddx = -6 * xdt3_term + 2 * xdt2_term;
-  dx = xdt3_term - xdt2_term + 3 * dt * (points[2] - points[0]);
-  x = points[0];
+  dddx = 6.f * xdt3_term;
+  ddx = -6.f * xdt3_term + 2.f * xdt2_term;
+  dx = xdt3_term - xdt2_term + 3.f * dt * (points[2] - points[0]);
+  x = (float)points[0];
 
   out_x[0] = points[0];
 
@@ -222,16 +223,16 @@ static void calc_spline(int points[8], int num_points, int* out_x, int* out_y) {
   }
 
   // Y coordinates.
-  ydt2_term = 3 * (points[5] - 2 * points[3] + points[1]);
-  ydt3_term = points[7] + 3 * (-points[5] + points[3]) - points[1];
+  ydt2_term = 3.f * (points[5] - 2.f * points[3] + points[1]);
+  ydt3_term = points[7] + 3.f * (-points[5] + points[3]) - points[1];
 
   ydt2_term = dt2 * ydt2_term;
   ydt3_term = dt3 * ydt3_term;
 
-  dddy = 6 * ydt3_term;
-  ddy = -6 * ydt3_term + 2 * ydt2_term;
-  dy = ydt3_term - ydt2_term + dt * 3 * (points[3] - points[1]);
-  y = points[1];
+  dddy = 6.f * ydt3_term;
+  ddy = -6.f * ydt3_term + 2.f * ydt2_term;
+  dy = ydt3_term - ydt2_term + dt * 3.f * (points[3] - points[1]);
+  y = (float)points[1];
 
   out_y[0] = points[1];
 
@@ -275,6 +276,109 @@ void gfx_Spline(Bitmap* bmp, int points[8], Color color) {
   }
 }
 
+// Calculates a set of pixels for the bezier spline defined by the four points
+// specified in the points array. The required resolution is specified by the
+// num_points parameter, which controls how many output pixels will be stored in
+// the x and y arrays.
+static void calc_splinef(float points[8],
+                         int num_points,
+                         float* out_x,
+                         float* out_y) {
+  // Derivatives of x(t) and y(t).
+  float x, dx, ddx, dddx;
+  float y, dy, ddy, dddy;
+  int i;
+
+  // Temp variables used in the setup.
+  float dt, dt2, dt3;
+  float xdt2_term, xdt3_term;
+  float ydt2_term, ydt3_term;
+
+  dt = 1.f / (num_points - 1);
+  dt2 = (dt * dt);
+  dt3 = (dt2 * dt);
+
+  // X coordinates.
+  xdt2_term = 3.f * (points[4] - 2.f * points[2] + points[0]);
+  xdt3_term = points[6] + 3.f * (-points[4] + points[2]) - points[0];
+
+  xdt2_term = dt2 * xdt2_term;
+  xdt3_term = dt3 * xdt3_term;
+
+  dddx = 6.f * xdt3_term;
+  ddx = -6.f * xdt3_term + 2.f * xdt2_term;
+  dx = xdt3_term - xdt2_term + 3.f * dt * (points[2] - points[0]);
+  x = (float)points[0];
+
+  out_x[0] = points[0];
+
+  x += .5;
+  for (i = 1; i < num_points; i++) {
+    ddx += dddx;
+    dx += ddx;
+    x += dx;
+
+    out_x[i] = x;
+  }
+
+  // Y coordinates.
+  ydt2_term = 3.f * (points[5] - 2.f * points[3] + points[1]);
+  ydt3_term = points[7] + 3.f * (-points[5] + points[3]) - points[1];
+
+  ydt2_term = dt2 * ydt2_term;
+  ydt3_term = dt3 * ydt3_term;
+
+  dddy = 6.f * ydt3_term;
+  ddy = -6.f * ydt3_term + 2.f * ydt2_term;
+  dy = ydt3_term - ydt2_term + dt * 3.f * (points[3] - points[1]);
+  y = points[1];
+
+  out_y[0] = points[1];
+
+  y += .5;
+
+  for (i = 1; i < num_points; i++) {
+    ddy += dddy;
+    dy += ddy;
+    y += dy;
+
+    out_y[i] = y;
+  }
+}
+
+// The 4th order Bezier curve is a cubic curve passing through the first and
+// fourth point. The curve does not pass through the middle two points. They are
+// merely guide points which control the shape of the curve. The curve is
+// tangent to the lines joining points 1 and 2 and points 3 and 4.
+void gfx_Splinef(Bitmap* bmp, float points[8], Color color) {
+#define MAX_POINTS 64
+
+  float x_points[MAX_POINTS], y_points[MAX_POINTS];
+  int i;
+  int num_points;
+
+#define DIST(x, y) (sqrt((x) * (x) + (y) * (y)))
+  num_points = (int)(sqrt(DIST(points[2] - points[0], points[3] - points[1]) +
+                          DIST(points[4] - points[2], points[5] - points[3]) +
+                          DIST(points[6] - points[4], points[7] - points[5])) *
+                     1.2);
+#undef DIST
+
+  if (num_points > MAX_POINTS)
+    num_points = MAX_POINTS;
+
+  calc_splinef(points, num_points, x_points, y_points);
+
+  for (i = 1; i < num_points; i++) {
+    gfx_Line(bmp,
+             (int)x_points[i - 1],
+             (int)y_points[i - 1],
+             (int)x_points[i],
+             (int)y_points[i],
+             color);
+  }
+}
+
 void DrawCross(Bitmap* bmp, int x, int y, Color c) {
   gfx_Line(bmp, x - 3, y - 3, x + 3, y + 3, c);
   gfx_Line(bmp, x + 3, y - 3, x - 3, y + 3, c);
@@ -288,24 +392,33 @@ int main(void) {
   int splinedx = 1;
 
   Bitmap* screen = (Bitmap*)screen_bitmap;
-  screen->w = 128;
-  screen->h = 128;
+  screen->w = 256;
+  screen->h = 256;
   screen->clip = 1;
   screen->cl = 0;
-  screen->cr = 128;
+  screen->cr = 256;
   screen->ct = 0;
-  screen->cb = 128;
+  screen->cb = 256;
   screen->data = &screen->line[0];
 
-  sys_gfx_open("coin", 128, 128);
+  NSVGimage* images[] = {
+    nsvgParseFromFile("bell.svg", "pt", 6),
+    nsvgParseFromFile("arrow-with-circle-left.svg", "pt", 6),
+    nsvgParseFromFile("bug.svg", "pt", 6),
+    nsvgParseFromFile("camera.svg", "pt", 6),
+    nsvgParseFromFile("thumbs-up.svg", "pt", 6),
+  };
+  int image_index = 0;
+
+  sys_gfx_open("coin", 256, 256);
   for (;;) {
     gfx_Clear(screen, 0);
     for (int i = 0; i < 10; ++i) {
       gfx_Line(screen,
-              64,
-              64,
-              64 + (int)((40 + i * 4) * cos(theta + 0.15f * i)),
-              64 + (int)((40 + i * 4) * sin(theta + 0.15f * i)),
+              128,
+              128,
+              128 + (int)((80 + i * 4) * cosf(theta + 0.15f * i)),
+              128 + (int)((80 + i * 4) * sinf(theta + 0.15f * i)),
               4);
     }
     theta += 0.01f;
@@ -313,15 +426,15 @@ int main(void) {
     int points[8] = {
         splinex,
         4,
-        (int)(32*cos(theta*3.f) + 32),
-        (int)(32*sin(theta*3.f) + 32),
-        (int)(-32*cos(theta*3.f) + 96),
-        (int)(-32*sin(theta*3.f) + 96),
-        128 - splinex,
-        124,
+        (int)(64*cosf(theta*3.f) + 64),
+        (int)(64*sinf(theta*3.f) + 64),
+        (int)(-64*cosf(theta*3.f) + 192),
+        (int)(-64*sinf(theta*3.f) + 192),
+        256 - splinex,
+        254,
     };
     splinex += splinedx;
-    if (splinex == 127)
+    if (splinex == 255)
       splinedx = -1;
     else if (splinex == 1)
       splinedx = 1;
@@ -332,6 +445,20 @@ int main(void) {
     DrawCross(screen, points[4], points[5], 7);
     DrawCross(screen, points[6], points[7], 7);
 
+    NSVGimage* image = images[(image_index++)/30];
+    if (image_index == sizeof(images)/sizeof(images[0]) * 30)
+      image_index = 0;
+    for (NSVGshape* shape = image->shapes; shape != NULL; shape = shape->next) {
+      for (NSVGpath* path = shape->paths; path != NULL; path = path->next) {
+        for (int i = 0; i < path->npts - 1; i += 3) {
+          float* p = &path->pts[i * 2];
+          gfx_Splinef(screen, &p[0], 2);
+        }
+      }
+    }
+
     sys_gfx_update(screen->data);
   }
+
+	/*nsvgDelete(image);*/
 }
