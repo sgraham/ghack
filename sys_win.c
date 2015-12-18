@@ -190,8 +190,8 @@ int sys_gfx_open(char* title, int width, int height) {
     AppendMenu(menu, MF_STRING, SC_ZOOM_4x4, "Zoom 4 x 4");
   }
 
-  // Set default zoom to 4x.
-  SendMessage(g_wnd, WM_SYSCOMMAND, SC_ZOOM_4x4, 0);
+  // Set default zoom to 2x.
+  SendMessage(g_wnd, WM_SYSCOMMAND, SC_ZOOM_2x2, 0);
 
   return 1;
 }
